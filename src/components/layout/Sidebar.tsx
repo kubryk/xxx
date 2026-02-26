@@ -1,8 +1,9 @@
 'use client'
 
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter, usePathname } from 'next/navigation'
-import { CheckSquare, Home, Settings, LayoutDashboard, LogOut, User as UserIcon } from 'lucide-react'
+import { Home, Settings, LayoutDashboard, LogOut, User as UserIcon, Store } from 'lucide-react'
 import type { User } from '@supabase/supabase-js'
 
 import { cn } from '@/lib/utils'
@@ -16,12 +17,12 @@ import {
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { Skeleton } from '@/components/ui/skeleton'
 import { toast } from 'sonner'
+import { availableTools } from '@/config/tools'
 
-const navigation = [
-    { name: 'Dashboard', href: '/', icon: Home },
-    { name: 'TODO', href: '/todo', icon: CheckSquare },
-    // Future tools can be added here
+const baseNavigation = [
+    { name: 'Dashboard', href: '/', icon: Home, id: 'home' },
 ]
 
 interface SidebarProps {
@@ -32,6 +33,32 @@ export function Sidebar({ user }: SidebarProps) {
     const pathname = usePathname()
     const router = useRouter()
     const supabase = createClient()
+    const [enabledToolsIds, setEnabledToolsIds] = useState<string[]>([])
+    const [isLoading, setIsLoading] = useState(true)
+
+    const fetchTools = async () => {
+        if (!user) {
+            setIsLoading(false)
+            return
+        }
+        setIsLoading(true)
+        const { data, error } = await supabase
+            .from('user_tools')
+            .select('tool_id')
+            .eq('user_id', user.id)
+        if (!error && data) {
+            setEnabledToolsIds(data.map(t => t.tool_id))
+        }
+        setIsLoading(false)
+    }
+
+    useEffect(() => {
+        fetchTools()
+
+        const handleToolsUpdated = () => fetchTools()
+        window.addEventListener('tools_updated', handleToolsUpdated)
+        return () => window.removeEventListener('tools_updated', handleToolsUpdated)
+    }, [user])
 
     const handleSignOut = async () => {
         const { error } = await supabase.auth.signOut()
@@ -55,7 +82,7 @@ export function Sidebar({ user }: SidebarProps) {
 
             <div className="flex-1 overflow-auto py-2">
                 <nav className="grid gap-1 px-2">
-                    {navigation.map((item) => {
+                    {baseNavigation.map((item) => {
                         const isActive = pathname === item.href
                         return (
                             <Link
@@ -73,10 +100,51 @@ export function Sidebar({ user }: SidebarProps) {
                             </Link>
                         )
                     })}
+
+                    {user && (
+                        <div className="mt-4 mb-1 px-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                            My Tools
+                        </div>
+                    )}
+
+                    {isLoading && user ? (
+                        <div className="space-y-2 px-2 py-1 relative">
+                            <Skeleton className="h-9 w-full rounded-lg" />
+                            <Skeleton className="h-9 w-full rounded-lg" />
+                        </div>
+                    ) : (
+                        availableTools
+                            .filter(tool => enabledToolsIds.includes(tool.id))
+                            .map((tool) => {
+                                const isActive = pathname === tool.href
+                                return (
+                                    <Link
+                                        key={tool.id}
+                                        href={tool.href}
+                                        className={cn(
+                                            "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all",
+                                            isActive
+                                                ? "bg-primary text-primary-foreground"
+                                                : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                                        )}
+                                    >
+                                        <tool.icon className="h-4 w-4" />
+                                        {tool.name}
+                                    </Link>
+                                )
+                            })
+                    )}
                 </nav>
             </div>
 
             <div className="mt-auto px-2 pb-4">
+                <Link
+                    href="/tools"
+                    className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground transition-all hover:bg-muted hover:text-foreground"
+                >
+                    <Store className="h-4 w-4" />
+                    Tool Store
+                </Link>
                 <Link
                     href="/settings"
                     className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground transition-all hover:bg-muted hover:text-foreground mb-4"
