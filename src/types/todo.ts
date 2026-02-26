@@ -5,5 +5,6 @@ export type Todo = {
     is_completed: boolean
     created_at: string
     target_date: string
+    target_time: string | null
     priority: 'low' | 'medium' | 'high'
 }

@@ -27,6 +27,7 @@ import { cn } from '@/lib/utils'
 export function NewTodoForm() {
     const [title, setTitle] = useState('')
     const [date, setDate] = useState<Date>(new Date())
+    const [time, setTime] = useState<string>('')
     const [priority, setPriority] = useState<string>('medium')
     const [isSubmitting, setIsSubmitting] = useState(false)
     const router = useRouter()
@@ -64,6 +65,7 @@ export function NewTodoForm() {
                 title: title.trim(),
                 user_id: session.user.id,
                 target_date: targetDateFormatted,
+                target_time: time ? `${time}:00` : null, // Store as time string or null
                 priority: priority
             })
 
@@ -73,6 +75,7 @@ export function NewTodoForm() {
         } else {
             toast.success('Task created successfully')
             setTitle('')
+            setTime('')
             router.refresh()
         }
 
@@ -88,33 +91,43 @@ export function NewTodoForm() {
                         onChange={(e) => setTitle(e.target.value)}
                         placeholder="Add a new task..."
                         disabled={isSubmitting}
-                        className="flex-1"
+                        className="flex-1 min-w-[150px]"
                     />
 
-                    <Popover>
-                        <PopoverTrigger asChild>
-                            <Button
-                                variant={"outline"}
-                                className={cn(
-                                    "w-[140px] justify-start text-left font-normal shrink-0 px-3",
-                                    !date && "text-muted-foreground"
-                                )}
-                            >
-                                <CalendarIcon className="mr-2 h-4 w-4" />
-                                <span className="truncate">
-                                    {date ? format(date, "dd.MM.yyyy") : <span>Pick a date</span>}
-                                </span>
-                            </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0" align="end">
-                            <Calendar
-                                mode="single"
-                                selected={date}
-                                onSelect={(d) => d && setDate(d)}
-                                initialFocus
-                            />
-                        </PopoverContent>
-                    </Popover>
+                    <div className="flex items-center gap-2 overflow-x-auto pb-1 -mb-1 scrollbar-hide shrink-0">
+                        <Popover>
+                            <PopoverTrigger asChild>
+                                <Button
+                                    variant={"outline"}
+                                    className={cn(
+                                        "w-[140px] justify-start text-left font-normal shrink-0 px-3",
+                                        !date && "text-muted-foreground"
+                                    )}
+                                >
+                                    <CalendarIcon className="mr-2 h-4 w-4" />
+                                    <span className="truncate">
+                                        {date ? format(date, "dd.MM.yyyy") : <span>Pick a date</span>}
+                                    </span>
+                                </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0" align="end">
+                                <Calendar
+                                    mode="single"
+                                    selected={date}
+                                    onSelect={(d) => d && setDate(d)}
+                                    initialFocus
+                                />
+                            </PopoverContent>
+                        </Popover>
+
+                        <Input
+                            type="time"
+                            value={time}
+                            onChange={(e) => setTime(e.target.value)}
+                            className="w-[110px] shrink-0 uppercase"
+                            aria-label="Target Time"
+                        />
+                    </div>
 
                     <Select value={priority} onValueChange={setPriority}>
                         <SelectTrigger className="w-[110px] shrink-0">

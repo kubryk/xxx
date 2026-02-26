@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Button } from '@/components/ui/button'
-import { Trash2, Loader2, CalendarIcon, Pencil } from 'lucide-react'
+import { Trash2, Loader2, CalendarIcon, Pencil, Clock } from 'lucide-react'
 import { parseISO, format, isBefore, startOfDay } from 'date-fns'
 import { cn } from '@/lib/utils'
 import type { Todo } from '@/types/todo'
@@ -40,14 +40,30 @@ export function TodoItem({ todo, hideDate = false }: TodoItemProps) {
     const [isEditing, setIsEditing] = useState(false)
     const [editTitle, setEditTitle] = useState(todo.title)
     const [editDate, setEditDate] = useState<Date>(parseISO(todo.target_date))
+    const [editTime, setEditTime] = useState<string>(todo.target_time ? todo.target_time.slice(0, 5) : '')
     const [editPriority, setEditPriority] = useState<string>(todo.priority || 'medium')
 
     const supabase = createClient()
     const router = useRouter()
 
     const targetDate = startOfDay(parseISO(todo.target_date))
-    const today = startOfDay(new Date())
-    const isOverdue = isBefore(targetDate, today) && !todo.is_completed
+    let targetDatetime = targetDate
+    if (todo.target_time) {
+        const [hours, minutes] = todo.target_time.split(':').map(Number)
+        targetDatetime = new Date(targetDate)
+        targetDatetime.setHours(hours, minutes, 0, 0)
+    } else {
+        targetDatetime = new Date(targetDate)
+        targetDatetime.setHours(23, 59, 59, 999)
+    }
+
+    const now = new Date()
+    const isOverdue = isBefore(targetDatetime, now) && !todo.is_completed
+
+    // Check if deadline is within the next 1 hour (and not completed, and not overdue)
+    const msInHour = 60 * 60 * 1000
+    const timeToDeadline = targetDatetime.getTime() - now.getTime()
+    const isApproaching = !todo.is_completed && !isOverdue && todo.target_time && timeToDeadline > 0 && timeToDeadline <= msInHour
 
     const handleToggle = async (checked: boolean) => {
         setIsUpdating(true)
@@ -76,6 +92,7 @@ export function TodoItem({ todo, hideDate = false }: TodoItemProps) {
             .update({
                 title: editTitle.trim(),
                 target_date: format(editDate, 'yyyy-MM-dd'),
+                target_time: editTime ? `${editTime}:00` : null,
                 priority: editPriority
             })
             .eq('id', todo.id)
@@ -122,33 +139,38 @@ export function TodoItem({ todo, hideDate = false }: TodoItemProps) {
                     disabled={isUpdating || isDeleting}
                 />
                 <div className="flex flex-col gap-1 min-w-0">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-start gap-2 min-w-0">
                         {!todo.is_completed && (
                             <div className={cn(
-                                "h-2 w-2 rounded-full shrink-0",
+                                "h-2 w-2 rounded-full shrink-0 mt-2",
                                 todo.priority === 'high' ? "bg-red-500" :
                                     todo.priority === 'medium' ? "bg-orange-500" :
                                         "bg-blue-500"
                             )} title={`${todo.priority} priority`} />
                         )}
                         <span className={cn(
-                            "text-sm font-medium transition-all truncate",
-                            todo.is_completed && "text-muted-foreground line-through"
+                            "text-base font-semibold transition-all break-words whitespace-normal",
+                            todo.is_completed && "text-muted-foreground line-through font-medium"
                         )}>
                             {todo.title}
                         </span>
                     </div>
-                    {!hideDate && (
+                    {(!hideDate || !!todo.target_time) && (
                         <div className={cn(
-                            "flex items-center text-xs font-medium px-2 py-0.5 rounded-full w-fit max-w-full",
+                            "flex items-center text-xs font-medium px-2 py-0.5 rounded-full w-fit max-w-full transition-colors",
                             isOverdue
                                 ? "bg-destructive/10 text-destructive"
                                 : todo.is_completed
                                     ? "bg-muted text-muted-foreground"
-                                    : "bg-secondary text-secondary-foreground"
+                                    : isApproaching
+                                        ? "bg-warning/20 text-warning-foreground border border-warning/50 animate-pulse"
+                                        : "bg-secondary text-secondary-foreground"
                         )}>
-                            <CalendarIcon className="mr-1 h-3 w-3 shrink-0" />
-                            <span className="truncate">{format(targetDate, "dd.MM.yyyy")}</span>
+                            <Clock className="mr-1.5 h-3 w-3 shrink-0" />
+                            <span className="truncate">
+                                {!hideDate && format(targetDate, "dd.MM.yyyy")}
+                                {todo.target_time && (!hideDate ? ` в ${todo.target_time.slice(0, 5)}` : todo.target_time.slice(0, 5))}
+                            </span>
                         </div>
                     )}
                 </div>
@@ -182,29 +204,39 @@ export function TodoItem({ todo, hideDate = false }: TodoItemProps) {
                                 />
                             </div>
                             <div className="grid gap-2">
-                                <label className="text-sm font-medium">Target Date</label>
-                                <Popover>
-                                    <PopoverTrigger asChild>
-                                        <Button
-                                            variant={"outline"}
-                                            className={cn(
-                                                "justify-start text-left font-normal",
-                                                !editDate && "text-muted-foreground"
-                                            )}
-                                        >
-                                            <CalendarIcon className="mr-2 h-4 w-4" />
-                                            {editDate ? format(editDate, "dd.MM.yyyy") : <span>Pick a date</span>}
-                                        </Button>
-                                    </PopoverTrigger>
-                                    <PopoverContent className="w-auto p-0" align="start">
-                                        <Calendar
-                                            mode="single"
-                                            selected={editDate}
-                                            onSelect={(d) => d && setEditDate(d)}
-                                            initialFocus
-                                        />
-                                    </PopoverContent>
-                                </Popover>
+                                <label className="text-sm font-medium">Target Date & Time</label>
+                                <div className="flex items-center gap-2">
+                                    <Popover>
+                                        <PopoverTrigger asChild>
+                                            <Button
+                                                variant={"outline"}
+                                                className={cn(
+                                                    "justify-start text-left font-normal",
+                                                    !editDate && "text-muted-foreground"
+                                                )}
+                                            >
+                                                <CalendarIcon className="mr-2 h-4 w-4" />
+                                                {editDate ? format(editDate, "dd.MM.yyyy") : <span>Pick a date</span>}
+                                            </Button>
+                                        </PopoverTrigger>
+                                        <PopoverContent className="w-auto p-0" align="start">
+                                            <Calendar
+                                                mode="single"
+                                                selected={editDate}
+                                                onSelect={(d) => d && setEditDate(d)}
+                                                initialFocus
+                                            />
+                                        </PopoverContent>
+                                    </Popover>
+
+                                    <Input
+                                        type="time"
+                                        value={editTime}
+                                        onChange={(e) => setEditTime(e.target.value)}
+                                        className="w-[110px] shrink-0 uppercase"
+                                        aria-label="Target Time"
+                                    />
+                                </div>
                             </div>
                             <div className="grid gap-2">
                                 <label className="text-sm font-medium">Priority</label>
