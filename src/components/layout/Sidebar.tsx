@@ -35,17 +35,22 @@ export function Sidebar({ user }: SidebarProps) {
     const supabase = createClient()
     const [enabledToolsIds, setEnabledToolsIds] = useState<string[]>([])
     const [isLoading, setIsLoading] = useState(true)
+    const [lastUserId, setLastUserId] = useState<string | null>(user?.id || null)
 
-    const fetchTools = async () => {
+    const fetchTools = async (forceLoading = false) => {
         if (!user) {
+            setEnabledToolsIds([])
             setIsLoading(false)
             return
         }
-        setIsLoading(true)
+
+        if (forceLoading) setIsLoading(true)
+
         const { data, error } = await supabase
             .from('user_tools')
             .select('tool_id')
             .eq('user_id', user.id)
+
         if (!error && data) {
             setEnabledToolsIds(data.map(t => t.tool_id))
         }
@@ -53,12 +58,17 @@ export function Sidebar({ user }: SidebarProps) {
     }
 
     useEffect(() => {
-        fetchTools()
+        // Only show loading skeleton if the user has actually changed (login/switch account)
+        // or if tools haven't been loaded yet.
+        const shouldShowLoading = user?.id !== lastUserId || enabledToolsIds.length === 0
 
-        const handleToolsUpdated = () => fetchTools()
+        fetchTools(shouldShowLoading)
+        setLastUserId(user?.id || null)
+
+        const handleToolsUpdated = () => fetchTools(true)
         window.addEventListener('tools_updated', handleToolsUpdated)
         return () => window.removeEventListener('tools_updated', handleToolsUpdated)
-    }, [user])
+    }, [user?.id])
 
     const handleSignOut = async () => {
         const { error } = await supabase.auth.signOut()
