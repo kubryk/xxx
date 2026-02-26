@@ -1,4 +1,4 @@
-import { CheckSquare, TypeIcon as type, LucideIcon, PenTool } from 'lucide-react'
+import { CheckSquare, TypeIcon as type, LucideIcon, PenTool, Users } from 'lucide-react'
 
 export type ToolConfig = {
     id: string
@@ -25,6 +25,13 @@ export const availableTools: ToolConfig[] = [
         href: '/notes',
         icon: PenTool,
         color: 'bg-blue-500/10 text-blue-500',
+    },
+    {
+        id: 'crm',
+        name: 'CRM',
+        description: 'Track your clients, capture leads, and manage interactions.',
+        href: '/crm',
+        icon: Users,
+        color: 'bg-purple-500/10 text-purple-500',
     }
-    // Future tools can be added here
 ]
